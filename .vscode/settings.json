@@ -6,6 +6,7 @@
         "Hellow",
         "sessionmaker",
         "SQLALCHMEY",
-        "sqltypes"
+        "sqltypes",
+        "sslmode"
     ]
 }

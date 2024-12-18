@@ -1,88 +1,53 @@
-from .database import Base
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
-from sqlalchemy.sql.expression import text
-from sqlalchemy.sql.sqltypes import TIMESTAMP
+from sqlalchemy import Column, BigInteger, String, ForeignKey, Index, TIMESTAMP, text
+from sqlalchemy.orm import relationship, declarative_base
 
+Base = declarative_base()
 
+class Account(Base):
+    __tablename__ = "accounts"
 
-class AccountsTable(Base): 
-    __tablename__ = "accounts_table"
-    account_id = Column(Integer, primary_key=True, nullable=False)
+    account_id = Column(BigInteger, primary_key=True, autoincrement=True)
     owner = Column(String, nullable=False)
-    balance = Column(Integer, nullable=False)
-    currency = Column(Integer, nullable=False)
+    balance = Column(BigInteger, nullable=False)
+    currency = Column(String, nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
 
+    entries = relationship("Entry", back_populates="account")
+    outgoing_transfers = relationship("Transfer", foreign_keys="Transfer.from_account_id", back_populates="from_account")
+    incoming_transfers = relationship("Transfer", foreign_keys="Transfer.to_account_id", back_populates="to_account")
 
-class EntriesTable(Base): 
-    __tablename__ = "entries_table"
-    entry_id = Column(Integer, primary_key=True, nullable=False)
+    __table_args__ = (
+        Index("idx_accounts_owner", "owner"),
+    )
 
-    
-    
+class Entry(Base):
+    __tablename__ = "entries"
 
-CREATE TABLE "accounts" (
-  "account_id" bigserial PRIMARY KEY,
-  "owner" varchar NOT NULL,
-  "balance" bigint NOT NULL,
-  "currency" varchar NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT 'now()'
-);
+    entry_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    account_id = Column(BigInteger, ForeignKey("accounts.account_id"), nullable=True)
+    amount = Column(BigInteger, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
 
-CREATE TABLE "entries" (
-  "entry_id" bigserial PRIMARY KEY,
-  "account_id" bigint,
-  "amount" bigint NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT 'now()'
-);
+    account = relationship("Account", back_populates="entries")
 
-CREATE TABLE "transfers" (
-  "id" bigserial PRIMARY KEY,
-  "from_account_id" bigint,
-  "to_account_id" bigint,
-  "amount" bigint NOT NULL,
-  "created_at" timestamptz NOT NULL DEFAULT 'now()'
-);
+    __table_args__ = (
+        Index("idx_entries_account_id", "account_id"),
+    )
 
-CREATE INDEX ON "accounts" ("owner");
+class Transfer(Base):
+    __tablename__ = "transfers"
 
-CREATE INDEX ON "entries" ("account_id");
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    from_account_id = Column(BigInteger, ForeignKey("accounts.account_id"), nullable=True)
+    to_account_id = Column(BigInteger, ForeignKey("accounts.account_id"), nullable=True)
+    amount = Column(BigInteger, nullable=False, comment="It must be positive")
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text('now()'))
 
-CREATE INDEX ON "transfers" ("from_account_id");
+    from_account = relationship("Account", foreign_keys=[from_account_id], back_populates="outgoing_transfers")
+    to_account = relationship("Account", foreign_keys=[to_account_id], back_populates="incoming_transfers")
 
-CREATE INDEX ON "transfers" ("to_account_id");
-
-CREATE INDEX ON "transfers" ("from_account_id", "to_account_id");
-
-COMMENT ON COLUMN "transfers"."amount" IS 'It must be positive';
-
-ALTER TABLE "entries" ADD FOREIGN KEY ("account_id") REFERENCES "accounts" ("account_id");
-
-ALTER TABLE "transfers" ADD FOREIGN KEY ("from_account_id") REFERENCES "accounts" ("account_id");
-
-ALTER TABLE "transfers" ADD FOREIGN KEY ("to_account_id") REFERENCES "accounts" ("account_id");
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    __table_args__ = (
+        Index("idx_transfers_from_account_id", "from_account_id"),
+        Index("idx_transfers_to_account_id", "to_account_id"),
+        Index("idx_transfers_from_to_account_id", "from_account_id", "to_account_id"),
+    )
